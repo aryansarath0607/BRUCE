@@ -12,15 +12,16 @@ def main() -> None:
     parser.add_argument("--approve", action="store_true", help="Approve machine-changing actions")
     parser.add_argument("--voice", action="store_true", help="Use the microphone for an interactive session")
     parser.add_argument("--speak", action="store_true", help="Read responses aloud")
+    parser.add_argument("--listen-once", action="store_true", help="Capture one voice input and exit")
     parser.add_argument("--plan", action="store_true", help="Display the plan before execution")
     args = parser.parse_args()
     settings = Settings.from_env()
     voice = None
-    if args.voice or args.speak or settings.speak_responses:
+    if args.voice or args.speak or settings.speak_responses or args.listen_once:
         try:
             voice = Voice(settings)
         except VoiceUnavailable as exc:
-            if args.voice:
+            if args.voice or args.listen_once:
                 parser.error(str(exc))
             print(f"Voice disabled: {exc}")
 
@@ -33,6 +34,16 @@ def main() -> None:
         print(f"BRUCE> {result}")
         if voice and (args.speak or settings.speak_responses):
             voice.speak(result)
+
+    if args.listen_once:
+        if not voice:
+            parser.error("Voice support is unavailable.")
+        text = voice.listen()
+        if text:
+            respond(text)
+        else:
+            print("BRUCE> No speech detected.")
+        return
 
     if args.once:
         respond(args.once)

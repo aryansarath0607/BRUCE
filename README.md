@@ -1,6 +1,6 @@
 # BRUCE
 
-BRUCE now includes a provider-independent orchestrator, deterministic tools, persistent memory, safety gates, optional voice I/O, web search, system information, and screenshots.
+BRUCE is a local, safety-first personal AI agent for Windows. It now supports stronger voice recognition, multi-step reasoning, web search, file operations, clipboard tools, screenshot capture, and system inspection.
 
 ## Install
 
@@ -11,18 +11,49 @@ pip install -e ".[all]"
 Copy-Item .env.example .env
 ```
 
-For voice only, use `pip install -e ".[voice]"`. On Windows, if PyAudio installation fails, install a matching wheel or use text mode; the rest of BRUCE remains usable.
-
-## Use
+For minimum setup only:
 
 ```powershell
-bruce                         # text mode
-bruce --voice --speak         # microphone + spoken responses
-bruce --once "search the web for Ollama"
+pip install -e ".[voice]"
+```
+
+## Configure voice
+
+```env
+BRUCE_VOICE_BACKEND=google
+BRUCE_VOICE_LANGUAGE=en-US
+BRUCE_VOICE_RATE=175
+BRUCE_SPEAK=false
+BRUCE_WAKE_WORD=bruce
+```
+
+`BRUCE_VOICE_BACKEND` supports `google` (fastest and easiest) and `whisper` when the OpenAI transcription API is available via `OPENAI_API_KEY`.
+
+## Commands
+
+```powershell
+bruce
+bruce --voice --speak
+bruce --listen-once
+bruce --once "search the web for best local LLMs"
 bruce --once "show system information"
 bruce --approve --once "take a screenshot"
 ```
 
-Available capabilities include opening applications and URLs, web search, system information, screenshots, file operations, memory, optional shell commands, and interchangeable Ollama/Groq providers. Machine-changing actions require confirmation by default. Shell execution remains disabled unless `BRUCE_ALLOW_SHELL=true`.
+## Features
 
-Voice uses microphone speech recognition and Windows' available text-to-speech engine. Speech recognition currently uses Google's recognition endpoint; the rest of the agent can run fully locally with Ollama.
+- natural-language command parsing
+- Ollama and Groq provider support
+- tool-based actions with approval gating
+- multi-step planning and recovery
+- memory persistence
+- web search
+- folder listing
+- clipboard read/write
+- file read/write
+- screenshot capture
+- system info reporting
+- speech recognition with fallback ordering
+- text-to-speech output
+
+The system remains intentionally conservative: shell commands stay off unless `BRUCE_ALLOW_SHELL=true`, and machine-changing actions still require confirmation unless `--approve` is passed.
