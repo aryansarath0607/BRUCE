@@ -1,6 +1,6 @@
 # BRUCE
 
-BRUCE is a local, safety-first personal AI agent for Windows. It now supports stronger voice recognition, multi-step reasoning, web search, file operations, clipboard tools, screenshot capture, and system inspection.
+BRUCE is a private, safety-first Windows AI agent. It now has a provider-independent orchestrator, voice I/O with Bluetooth input selection, planning/recovery, persistent memory, a SQLite task journal, deterministic verification, web/file/system tools, screenshots, clipboard support, diagnostics, and an optional Playwright browser skill.
 
 ## Install
 
@@ -8,52 +8,30 @@ BRUCE is a local, safety-first personal AI agent for Windows. It now supports st
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[all]"
+playwright install chromium
 Copy-Item .env.example .env
 ```
 
-For minimum setup only:
+Optional groups can be installed separately: `.[voice]`, `.[screen]`, `.[clipboard]`, or `.[browser]`.
+
+## Use
 
 ```powershell
-pip install -e ".[voice]"
-```
-
-## Configure voice
-
-```env
-BRUCE_VOICE_BACKEND=google
-BRUCE_VOICE_LANGUAGE=en-US
-BRUCE_VOICE_RATE=175
-BRUCE_SPEAK=false
-BRUCE_WAKE_WORD=bruce
-```
-
-`BRUCE_VOICE_BACKEND` supports `google` (fastest and easiest) and `whisper` when the OpenAI transcription API is available via `OPENAI_API_KEY`.
-
-## Commands
-
-```powershell
-bruce
+bruce --doctor
+bruce --list-audio-devices
 bruce --voice --speak
-bruce --listen-once
-bruce --once "search the web for best local LLMs"
-bruce --once "show system information"
+bruce --once "search the web for local AI models"
 bruce --approve --once "take a screenshot"
 ```
 
-## Features
+## JARVIS-style architecture
 
-- natural-language command parsing
-- Ollama and Groq provider support
-- tool-based actions with approval gating
-- multi-step planning and recovery
-- memory persistence
-- web search
-- folder listing
-- clipboard read/write
-- file read/write
-- screenshot capture
-- system info reporting
-- speech recognition with fallback ordering
-- text-to-speech output
+```text
+voice/text -> planner -> approval gate -> typed tools -> verification -> recovery -> task journal -> memory
+```
 
-The system remains intentionally conservative: shell commands stay off unless `BRUCE_ALLOW_SHELL=true`, and machine-changing actions still require confirmation unless `--approve` is passed.
+The task journal is stored in `.bruce/tasks.sqlite3`. It records requests, steps, statuses, and outputs so failures are inspectable rather than silently lost. Verification checks deterministic postconditions such as whether a written file or screenshot exists; model text is never treated as proof.
+
+The browser skill is intentionally optional and starts with navigation and extraction. Sensitive browser actions should remain behind an approval layer before being expanded to forms, downloads, or account actions.
+
+BRUCE is not unlimited autonomy: shell execution is disabled by default, machine-changing actions require approval, and browser automation is opt-in.

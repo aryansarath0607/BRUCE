@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from .config import Settings
+from .diagnostics import diagnostics
 from .orchestrator import Orchestrator
 from .voice import Voice, VoiceUnavailable
 
@@ -13,11 +15,14 @@ def main() -> None:
     parser.add_argument("--voice", action="store_true")
     parser.add_argument("--speak", action="store_true")
     parser.add_argument("--listen-once", action="store_true")
-    parser.add_argument("--list-audio-devices", action="store_true", help="List microphone names and indexes")
-    parser.add_argument("--plan", action="store_true")
+    parser.add_argument("--list-audio-devices", action="store_true")
+    parser.add_argument("--doctor", action="store_true", help="Check optional dependencies and local services")
     args = parser.parse_args()
     settings = Settings.from_env()
 
+    if args.doctor:
+        print(json.dumps(diagnostics(settings), indent=2))
+        return
     if args.list_audio_devices:
         try:
             for device in Voice.audio_devices():
@@ -39,8 +44,6 @@ def main() -> None:
 
     def respond(text: str):
         result = agent.handle(text)
-        if args.plan:
-            print("BRUCE plan> " + text)
         print(f"BRUCE> {result}")
         if voice and (args.speak or settings.speak_responses):
             voice.speak(result)
@@ -63,13 +66,12 @@ def main() -> None:
         except (EOFError, KeyboardInterrupt):
             break
         except Exception as exc:
-            print(f"BRUCE voice error> {exc}")
-            continue
-        if not text:
-            continue
-        if text.lower() in {"exit", "quit", "stop listening"}:
-            break
-        try:
-            respond(text)
-        except Exception as exc:
             print(f"BRUCE error> {exc}")
+            continue
+        if text and text.lower() not in {"exit", "quit", "stop listening"}:
+            try:
+                respond(text)
+            except Exception as exc:
+                print(f"BRUCE error> {exc}")
+        elif text:
+            break
