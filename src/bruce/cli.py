@@ -8,14 +8,24 @@ from .voice import Voice, VoiceUnavailable
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="BRUCE personal computer agent")
-    parser.add_argument("--once", help="Process one command and exit")
-    parser.add_argument("--approve", action="store_true", help="Approve machine-changing actions")
-    parser.add_argument("--voice", action="store_true", help="Use the microphone for an interactive session")
-    parser.add_argument("--speak", action="store_true", help="Read responses aloud")
-    parser.add_argument("--listen-once", action="store_true", help="Capture one voice input and exit")
-    parser.add_argument("--plan", action="store_true", help="Display the plan before execution")
+    parser.add_argument("--once")
+    parser.add_argument("--approve", action="store_true")
+    parser.add_argument("--voice", action="store_true")
+    parser.add_argument("--speak", action="store_true")
+    parser.add_argument("--listen-once", action="store_true")
+    parser.add_argument("--list-audio-devices", action="store_true", help="List microphone names and indexes")
+    parser.add_argument("--plan", action="store_true")
     args = parser.parse_args()
     settings = Settings.from_env()
+
+    if args.list_audio_devices:
+        try:
+            for device in Voice.audio_devices():
+                print(f"{device['index']}: {device['name']}")
+        except VoiceUnavailable as exc:
+            parser.error(str(exc))
+        return
+
     voice = None
     if args.voice or args.speak or settings.speak_responses or args.listen_once:
         try:
@@ -36,15 +46,12 @@ def main() -> None:
             voice.speak(result)
 
     if args.listen_once:
-        if not voice:
-            parser.error("Voice support is unavailable.")
-        text = voice.listen()
+        text = voice.listen() if voice else ""
         if text:
             respond(text)
         else:
             print("BRUCE> No speech detected.")
         return
-
     if args.once:
         respond(args.once)
         return
@@ -52,7 +59,7 @@ def main() -> None:
     print("BRUCE online. Type 'exit' to quit.")
     while True:
         try:
-            text = voice.listen() if args.voice else input("You> ").strip()
+            text = voice.listen() if args.voice and voice else input("You> ").strip()
         except (EOFError, KeyboardInterrupt):
             break
         except Exception as exc:
