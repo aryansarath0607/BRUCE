@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bruce-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "A safe, provider-independent personal AI agent for Windows"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -12,6 +12,9 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+voice = ["SpeechRecognition>=3.10", "PyAudio>=0.2.14", "pyttsx3>=2.90"]
+screen = ["Pillow>=10.0", "pyautogui>=0.9.54"]
+all = ["SpeechRecognition>=3.10", "PyAudio>=0.2.14", "pyttsx3>=2.90", "Pillow>=10.0", "pyautogui>=0.9.54"]
 
 [project.scripts]
 bruce = "bruce.cli:main"

@@ -27,20 +27,28 @@ class Settings:
     allow_shell: bool = False
     allowed_roots: tuple[Path, ...] = ()
     memory_path: Path = Path(".bruce/memory.json")
+    voice_language: str = "en-US"
+    voice_rate: int = 175
+    speak_responses: bool = False
+    listen_timeout: int = 5
+    phrase_time_limit: int = 15
 
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv()
         roots = tuple(Path(p).expanduser().resolve() for p in os.getenv("BRUCE_ALLOWED_ROOTS", "").split(";") if p)
         return cls(
-            provider=os.getenv("BRUCE_PROVIDER", "ollama").lower(),
-            model=os.getenv("BRUCE_MODEL", "llama3.2"),
+            provider=os.getenv("BRUCE_PROVIDER", "ollama").lower(), model=os.getenv("BRUCE_MODEL", "llama3.2"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/"),
             groq_base_url=os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/"),
             groq_api_key=os.getenv("GROQ_API_KEY", ""),
             allow_shell=os.getenv("BRUCE_ALLOW_SHELL", "false").lower() in {"1", "true", "yes"},
-            allowed_roots=roots,
-            memory_path=Path(os.getenv("BRUCE_MEMORY_PATH", ".bruce/memory.json")),
+            allowed_roots=roots, memory_path=Path(os.getenv("BRUCE_MEMORY_PATH", ".bruce/memory.json")),
+            voice_language=os.getenv("BRUCE_VOICE_LANGUAGE", "en-US"),
+            voice_rate=int(os.getenv("BRUCE_VOICE_RATE", "175")),
+            speak_responses=os.getenv("BRUCE_SPEAK", "false").lower() in {"1", "true", "yes"},
+            listen_timeout=int(os.getenv("BRUCE_LISTEN_TIMEOUT", "5")),
+            phrase_time_limit=int(os.getenv("BRUCE_PHRASE_LIMIT", "15")),
         )
 
     def json(self) -> str:
