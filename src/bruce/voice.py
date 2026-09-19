@@ -8,101 +8,78 @@ class VoiceUnavailable(RuntimeError):
 
 
 class Voice:
-    """Microphone/STT/TTS adapter with a persistent Bluetooth input-device selection."""
+    """Optional headset voice adapter. The wake word defaults to ``bruce``.
+
+    This implementation uses speech recognition to detect the wake phrase. It is
+    intentionally opt-in: BRUCE does not record or transmit audio until voice
+    mode is started by the user.
+    """
 
     def __init__(self, settings):
         try:
             import speech_recognition as sr
             import pyttsx3
         except ImportError as exc:
-            raise VoiceUnavailable("Install voice dependencies with: pip install -e '.[voice]'") from exc
+            raise VoiceUnavailable("Install voice support with: pip install -e '.[voice]'") from exc
         self.sr = sr
         self.recognizer = sr.Recognizer()
         self.engine = pyttsx3.init()
-        self.engine.setProperty("rate", settings.voice_rate)
+        self.engine.setProperty('rate', settings.voice_rate)
         self.language = settings.voice_language
+        self.backend = settings.voice_backend
+        self.wake_word = settings.wake_word
         self.timeout = settings.listen_timeout
         self.phrase_time_limit = settings.phrase_time_limit
-        self.voice_backend = settings.voice_backend
-        self.wake_word = settings.wake_word.lower()
-        self.input_name = settings.voice_input_name.strip()
-        self.input_index = settings.voice_input_index
-        self.device_index = self._select_input_device()
+        self.device_index = self._select_device(settings.voice_input_name, settings.voice_input_index)
 
     @staticmethod
     def audio_devices() -> list[dict]:
-        try:
-            import speech_recognition as sr
-            names = sr.Microphone.list_microphone_names()
-        except (ImportError, OSError) as exc:
-            raise VoiceUnavailable(f"Cannot enumerate microphones: {exc}") from exc
-        return [{"index": index, "name": name} for index, name in enumerate(names)]
+        import speech_recognition as sr
+        return [{'index': i, 'name': name} for i, name in enumerate(sr.Microphone.list_microphone_names())]
 
-    def _select_input_device(self) -> int | None:
+    def _select_device(self, wanted_name: str, wanted_index: int | None) -> int | None:
         devices = self.audio_devices()
-        if self.input_index is not None:
-            if any(device["index"] == self.input_index for device in devices):
-                selected = next(device for device in devices if device["index"] == self.input_index)
-                print(f"Microphone: {selected['name']} (device {self.input_index})")
-                return self.input_index
-            raise VoiceUnavailable(f"Configured microphone index {self.input_index} is unavailable. Run: bruce --list-audio-devices")
-        if self.input_name:
-            wanted = self.input_name.casefold()
+        if wanted_index is not None:
+            if any(d['index'] == wanted_index for d in devices):
+                return wanted_index
+            raise VoiceUnavailable(f'Microphone index {wanted_index} is unavailable; run bruce --list-audio-devices')
+        if wanted_name:
+            needle = wanted_name.casefold()
             for device in devices:
-                if wanted in device["name"].casefold():
+                if needle in device['name'].casefold():
                     print(f"Microphone: {device['name']} (device {device['index']})")
-                    return device["index"]
-            raise VoiceUnavailable(f"No microphone matched BRUCE_VOICE_INPUT_NAME={self.input_name!r}. Run: bruce --list-audio-devices")
-        print("Microphone: Windows default input device")
+                    return device['index']
+            raise VoiceUnavailable(f'No microphone matched {wanted_name!r}; run bruce --list-audio-devices')
+        print('Microphone: Windows default input device')
         return None
 
-    def _clean_result(self, text: str) -> str:
-        cleaned = re.sub(r"\s+", " ", text or "").strip()
-        if cleaned.lower().startswith(self.wake_word):
-            cleaned = cleaned[len(self.wake_word):].strip(" ,.-:;!?")
-        return cleaned
-
-    def _try_google(self, audio) -> str:
-        return self.recognizer.recognize_google(audio, language=self.language)
-
-    def _try_whisper(self, audio) -> str:
-        try:
-            import openai
-            transcript = openai.audio.transcriptions.create(model="gpt-4o-mini-transcribe", file=("audio.wav", audio.get_wav_data(), "audio/wav"))
-            return getattr(transcript, "text", "")
-        except Exception:
-            return ""
-
-    def listen(self) -> str:
-        with self.sr.Microphone(device_index=self.device_index) as source:
-            self.recognizer.adjust_for_ambient_noise(source, duration=0.4)
-            print("Listening...")
-            audio = self.recognizer.listen(source, timeout=self.timeout, phrase_time_limit=self.phrase_time_limit)
-        for backend in self._backend_order():
+    def _recognize(self, audio) -> str:
+        if self.backend == 'whisper':
             try:
-                text = self._try_google(audio) if backend == "google" else self._try_whisper(audio)
-                if text:
-                    return self._clean_result(text)
+                import openai
+                result = openai.audio.transcriptions.create(model='gpt-4o-mini-transcribe', file=('audio.wav', audio.get_wav_data(), 'audio/wav'))
+                return getattr(result, 'text', '')
             except Exception:
-                continue
-        return ""
+                return ''
+        try:
+            return self.recognizer.recognize_google(audio, language=self.language)
+        except Exception:
+            return ''
 
-    def _backend_order(self) -> list[str]:
-        preferred = self.voice_backend.lower()
-        order = [preferred] if preferred in {"google", "whisper"} else ["google", "whisper"]
-        if "whisper" not in order:
-            order.append("whisper")
-        return order
+    def listen(self, require_wake_word: bool = False) -> str:
+        with self.sr.Microphone(device_index=self.device_index) as source:
+            self.recognizer.adjust_for_ambient_noise(source, duration=0.25)
+            print('Listening...')
+            audio = self.recognizer.listen(source, timeout=self.timeout, phrase_time_limit=self.phrase_time_limit)
+        text = re.sub(r'\s+', ' ', self._recognize(audio)).strip()
+        if not text:
+            return ''
+        if require_wake_word:
+            match = re.match(rf'^\s*{re.escape(self.wake_word)}(?:\b|[,.:!?-])\s*(.*)$', text, re.I)
+            return match.group(1).strip() if match else ''
+        return text
 
     def speak(self, text: str) -> None:
         if text:
             self.engine.say(text)
             self.engine.runAndWait()
-
-    @staticmethod
-    def available() -> bool:
-        try:
-            import speech_recognition, pyttsx3  # noqa: F401
-            return True
-        except ImportError:
-            return False
